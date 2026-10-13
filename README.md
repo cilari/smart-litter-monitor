@@ -1,17 +1,28 @@
 # Smart Litter Monitor
 
-A real-time Cyber-Physical System that monitors a PetKit Pura X smart litter box, detects changing health patterns per cat, and sends automated alerts via Alexa, Grafana, and AWS IoT Core.
+A real-time Cyber-Physical System that monitors a PetKit Pura X smart litter box, calculates rule-based alerts, and sends automated announcements through Node-RED and Alexa.
 
 ![Architecture](docs/architecture.png)
 
 ## How it works
 
-- **Python** fetches live sensor data from the PetKit API every 5 minutes and publishes 7 sensor streams to MQTT
+- **Python** fetches PetKit data, calculates 7 sensor streams and 4 rule-based alerts, and publishes them to MQTT
 - **Mosquitto** brokers all MQTT messages locally
-- **Node-RED** validates, smooths, and runs anomaly detection on incoming data
-- **InfluxDB + Grafana** stores time-series data and renders a live monitoring dashboard
-- **AWS IoT Core** receives all sensor data over TLS for cloud integration
+- **Node-RED** validates and deduplicates alerts, applies quiet hours, and routes announcements
+- **InfluxDB + Grafana** support future time-series storage and dashboards; this branch is currently disabled
+- **AWS IoT Core** is reserved for future cloud integration
 - **Alexa** announces urgent alerts via an Echo device
+
+## Alert rules
+
+| Alert | Rule |
+|---|---|
+| No visit | A tracked cat has no litter-box visit during the latest 24-hour window |
+| Fast litter consumption | Current 24-hour consumption is more than 10% above the preceding 7-day baseline |
+| Low litter | PetKit reports that litter is low |
+| Waste box full | PetKit reports that the waste box is full |
+
+Visit-completion notifications are intentionally excluded. The current rules are deterministic and do not require AI. AI may be added later for combined frequency, duration, and weight anomalies.
 
 ## Sensor streams
 
@@ -39,8 +50,31 @@ cp .env.example .env
 # 3. Install Python dependencies
 pip install -r requirements.txt
 
-# 4. Start the full stack
-docker compose up -d
+# 4. Install Mosquitto on macOS
+brew install mosquitto
+
+# 5. Start the local MQTT broker from the repository root
+mosquitto -c mosquitto/mosquitto.conf
+```
+
+In another terminal, install and start Node-RED:
+
+```bash
+npm install -g --unsafe-perm node-red
+cd ~/.node-red
+npm install node-red-contrib-alexa-remote2-applestrudel node-red-contrib-influxdb
+node-red
+```
+
+Open `http://127.0.0.1:1880`, import
+`node-red/smart_litter_complete.json`, and configure your own Alexa account and
+Echo device in the announcement node. The repository flow contains no Alexa
+credentials or device identifiers.
+
+Run the Python publisher from the repository root:
+
+```bash
+python python/export_petkit_csv.py --publish-architecture
 ```
 
 ## Project structure
@@ -48,13 +82,13 @@ docker compose up -d
 ```
 smart-litter-monitor/
 ├── .github/workflows/   CI/CD — lint + tests on every push
-├── python/              Data collection, alert rules
+├── python/              PetKit data collection and alert rules
 ├── tests/               Unit tests for alert logic
-├── node-red/            Node-RED flow export (flows.json)
+├── node-red/            Node-RED alert workflow export
 ├── grafana/             Dashboard config
 ├── mosquitto/           MQTT broker config
 ├── aws/                 IoT Core policy
-└── docker-compose.yml   One-command stack start
+└── requirements.txt     Python dependencies
 ```
 
 ## CI status
