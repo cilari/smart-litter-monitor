@@ -1,0 +1,84 @@
+services:
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: slm-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.docker.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  node-red:
+    build: ./node-red
+    container_name: slm-node-red
+    ports:
+      - "1880:1880"
+    volumes:
+      - ./node-red:/data/flows
+      - ./node-red/settings.js:/data/settings.js:ro
+      - node-red-data:/data
+    environment:
+      - FLOWS=flows/smart_litter_complete.json
+      - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET}
+    depends_on:
+      - mosquitto
+      - influxdb
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2
+    container_name: slm-influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_ADMIN_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: slm-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    depends_on:
+      - influxdb
+    restart: unless-stopped
+
+  collector:
+    build: .
+    container_name: slm-collector
+    command: >
+      sh -c "while true; do
+        python python/export_petkit_csv.py --publish-architecture;
+        sleep 300;
+      done"
+    env_file: .env
+    environment:
+      - PETKIT_MQTT_HOST=mosquitto
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+  # AWS IoT Core bridge — Person C configures this
+  # aws-iot-bridge:
+  #   (to be added)
+
+volumes:
+  node-red-data:
+  influxdb-data:
+  grafana-data:
