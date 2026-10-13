@@ -27,4 +27,4 @@ jobs:
           ruff check python/
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: python -m pytest tests/ -v
