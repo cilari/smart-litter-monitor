@@ -29,7 +29,7 @@ A real-time Cyber-Physical System that monitors a PetKit Pura X smart litter box
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/smart-litter-monitor.git
+git clone https://github.com/cilari/smart-litter-monitor.git
 cd smart-litter-monitor
 
 # 2. Set up environment
@@ -59,4 +59,4 @@ smart-litter-monitor/
 
 ## CI status
 
-![CI](https://github.com/YOUR_USERNAME/smart-litter-monitor/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/cilari/smart-litter-monitor/actions/workflows/ci.yml/badge.svg)
