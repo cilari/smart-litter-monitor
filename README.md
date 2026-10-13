@@ -8,10 +8,10 @@ A real-time Cyber-Physical System that monitors a PetKit Pura X smart litter box
 
 - **Python** fetches PetKit data, calculates 7 sensor streams and 4 rule-based alerts, and publishes them to MQTT
 - **Mosquitto** brokers all MQTT messages locally
-- **Node-RED** validates and deduplicates alerts, applies quiet hours, and routes announcements
+- **Node-RED** validates and deduplicates alerts, applies quiet hours, and routes announcements plus Alexa App push notifications
 - **InfluxDB + Grafana** store every sensor reading, alert, and heartbeat as time-series data for the live dashboard
 - **AWS IoT Core** is reserved for future cloud integration
-- **Alexa** announces urgent alerts via an Echo device
+- **Alexa** announces alerts via an Echo device and sends a mobile push notification through the Alexa App
 
 ## Alert rules
 
@@ -88,7 +88,8 @@ Credentials are stored outside the repository, so enter them once in Node-RED:
 1. Open http://localhost:1880
 2. Double-click **Store smart-litter points**, click the pencil next to
    **Server**, and set the token to the `INFLUXDB_TOKEN` value from `.env`
-3. Configure your own Alexa account and Echo device in the announcement node
+3. Configure your own Alexa account and Echo device in the announcement node,
+   then select the same account in **Push alert to Alexa app**
 4. Click **Deploy**
 
 Node-RED encrypts these with `NODE_RED_CREDENTIAL_SECRET`, so they persist

@@ -4,7 +4,7 @@
         "type": "tab",
         "label": "Smart Litter Complete Pipeline",
         "disabled": false,
-        "info": "One complete flow for the Smart Litter Monitor. It receives litter/# MQTT messages from python/export_petkit_csv.py, writes sensor, alert, and heartbeat data to InfluxDB for Grafana, validates and deduplicates the four alert types, and sends Alexa announcements outside quiet hours."
+        "info": "One complete flow for the Smart Litter Monitor. It receives litter/# MQTT messages from python/export_petkit_csv.py, writes sensor, alert, and heartbeat data to InfluxDB for Grafana, validates and deduplicates the four alert types, applies quiet hours, and sends Alexa announcements plus mobile push notifications."
     },
     {
         "id": "d93ea6fb04257138",
@@ -57,7 +57,7 @@
         "type": "comment",
         "z": "a6f7d2b4c8e19031",
         "name": "One flow: MQTT, validation, InfluxDB, Grafana data, and Alexa",
-        "info": "Subscribes to litter/#. Alerts are validated, deduplicated, held during quiet hours, and routed to Alexa. The InfluxDB branch is included but disabled for the current phase. Configure your own Alexa account and Echo device after importing.",
+        "info": "Subscribes to litter/#. Alerts are validated, deduplicated, held during quiet hours, and routed to Alexa announcements and mobile push notifications. Sensor, alert, and heartbeat messages are also written to InfluxDB for Grafana. Configure your own Alexa account and Echo device after importing.",
         "x": 360,
         "y": 40,
         "wires": []
@@ -100,7 +100,8 @@
         "y": 140,
         "wires": [
             [
-                "f150c81d2647935a"
+                "f150c81d2647935a",
+                "0f3bd55f42ca781e"
             ],
             [
                 "0261d92e3758a46b"
@@ -136,7 +137,8 @@
         "y": 160,
         "wires": [
             [
-                "f150c81d2647935a"
+                "f150c81d2647935a",
+                "0f3bd55f42ca781e"
             ]
         ]
     },
@@ -159,6 +161,33 @@
         },
         "x": 1060,
         "y": 120,
+        "wires": [
+            [
+                "2483fb40597ac68d"
+            ]
+        ]
+    },
+    {
+        "id": "0f3bd55f42ca781e",
+        "type": "alexa-remote-routine",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Push alert to Alexa app",
+        "account": "",
+        "routineNode": {
+            "type": "pushNotification",
+            "payload": {
+                "text": {
+                    "type": "msg",
+                    "value": "payload"
+                },
+                "title": {
+                    "type": "str",
+                    "value": "Smart Litter Alert"
+                }
+            }
+        },
+        "x": 1060,
+        "y": 180,
         "wires": [
             [
                 "2483fb40597ac68d"
@@ -196,7 +225,7 @@
         "statusVal": "",
         "statusType": "auto",
         "x": 1290,
-        "y": 120,
+        "y": 150,
         "wires": []
     },
     {
