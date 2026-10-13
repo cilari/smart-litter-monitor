@@ -1,349 +1,347 @@
 [
-  {
-    "id": "a6f7d2b4c8e19031",
-    "type": "tab",
-    "label": "Smart Litter Complete Pipeline",
-    "disabled": false,
-    "info": "One complete flow for the Smart Litter Monitor. It receives litter/# MQTT messages from python/export_petkit_csv.py, writes sensor, alert, and heartbeat data to InfluxDB for Grafana, validates and deduplicates the four alert types, and sends Alexa announcements outside quiet hours."
-  },
-  {
-    "id": "b71c84d9e2035f16",
-    "type": "comment",
-    "z": "a6f7d2b4c8e19031",
-    "name": "One flow: MQTT, validation, InfluxDB, Grafana data, and Alexa",
-    "info": "Subscribes to litter/#. Alerts are validated, deduplicated, held during quiet hours, and routed to Alexa. The InfluxDB branch is included but disabled for the current phase. Configure your own Alexa account and Echo device after importing.",
-    "x": 360,
-    "y": 40,
-    "wires": []
-  },
-  {
-    "id": "c82d95eaf3146027",
-    "type": "mqtt in",
-    "z": "a6f7d2b4c8e19031",
-    "name": "All smart-litter topics",
-    "topic": "litter/#",
-    "qos": "1",
-    "datatype": "json",
-    "broker": "d93ea6fb04257138",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 170,
-    "y": 120,
-    "wires": [
-      [
-        "d04eb61a275893cf",
-        "84dafb1526379e4b"
-      ]
-    ]
-  },
-  {
-    "id": "e04fb70c15368249",
-    "type": "function",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Validate, deduplicate, route",
-    "func": "let event = msg.payload;\n\nfunction rejected(reason) {\n    node.warn(`Rejected alert: ${reason}`);\n    node.status({ fill: \"red\", shape: \"ring\", text: reason });\n    return [null, null, {\n        ...msg,\n        payload: {\n            valid: false,\n            reason,\n            received: event\n        }\n    }];\n}\n\nif (Buffer.isBuffer(event)) {\n    event = event.toString(\"utf8\");\n}\nif (typeof event === \"string\") {\n    try {\n        event = JSON.parse(event);\n    } catch (error) {\n        return rejected(\"invalid JSON\");\n    }\n}\nif (!event || typeof event !== \"object\" || Array.isArray(event)) {\n    return rejected(\"payload is not an object\");\n}\n\nconst topicClass = String(msg.topic || \"\").split(\"/\").pop();\nconst expectedTopicClass = {\n    fast_consumption: \"urgent\",\n    no_visit_24h: \"urgent\",\n    litter_lacking: \"maintenance\",\n    waste_bin_full: \"maintenance\"\n};\nconst requiredStrings = [\n    \"event_id\",\n    \"event_type\",\n    \"alert_type\",\n    \"device_id\",\n    \"qualification_timestamp\",\n    \"notification\"\n];\nfor (const field of requiredStrings) {\n    if (typeof event[field] !== \"string\" || !event[field].trim()) {\n        return rejected(`missing or invalid ${field}`);\n    }\n}\nif (event.event_type !== \"alert_opened\") {\n    return rejected(\"event_type must be alert_opened\");\n}\nif (!Object.hasOwn(expectedTopicClass, event.alert_type)) {\n    return rejected(\"unsupported alert_type\");\n}\nif (expectedTopicClass[event.alert_type] !== topicClass) {\n    return rejected(\"alert_type does not match MQTT topic\");\n}\nif (Number.isNaN(Date.parse(event.qualification_timestamp))) {\n    return rejected(\"invalid qualification_timestamp\");\n}\nif (event.alert_type === \"no_visit_24h\" &&\n    (typeof event.pet_name !== \"string\" || !event.pet_name.trim())) {\n    return rejected(\"no_visit_24h requires pet_name\");\n}\n\nconst deduplicationKey = `${event.event_type}|${event.alert_type}|${event.event_id}`;\nconst processed = flow.get(\"processedArchitectureAlertIds\") || [];\nif (processed.includes(deduplicationKey)) {\n    node.status({ fill: \"yellow\", shape: \"ring\", text: \"duplicate suppressed\" });\n    return [null, null, {\n        ...msg,\n        payload: {\n            valid: true,\n            duplicate: true,\n            event\n        }\n    }];\n}\nprocessed.push(deduplicationKey);\nflow.set(\"processedArchitectureAlertIds\", processed.slice(-500));\n\nconst now = new Date();\nconst voiceMessage = {\n    ...msg,\n    event,\n    payload: event.notification\n};\nconst auditMessage = {\n    ...msg,\n    payload: {\n        valid: true,\n        duplicate: false,\n        event\n    }\n};\nconst hour = now.getHours();\nconst quietHours = hour >= 22 || hour < 7;\nif (quietHours) {\n    const resumeAt = new Date(now);\n    resumeAt.setHours(7, 0, 0, 0);\n    if (resumeAt <= now) {\n        resumeAt.setDate(resumeAt.getDate() + 1);\n    }\n    voiceMessage.delay = resumeAt.getTime() - now.getTime();\n    auditMessage.payload.voice_delivery = \"delayed_until_07:00\";\n    auditMessage.payload.delay_ms = voiceMessage.delay;\n    node.status({ fill: \"blue\", shape: \"ring\", text: \"queued for 07:00\" });\n    return [null, voiceMessage, auditMessage];\n}\n\nauditMessage.payload.voice_delivery = \"immediate\";\nnode.status({ fill: \"green\", shape: \"dot\", text: event.alert_type });\nreturn [voiceMessage, null, auditMessage];",
-    "outputs": 3,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "outputLabels": [
-      "Immediate voice",
-      "Quiet-hours queue",
-      "Audit"
-    ],
-    "x": 470,
-    "y": 140,
-    "wires": [
-      [
-        "f150c81d2647935a"
-      ],
-      [
-        "0261d92e3758a46b"
-      ],
-      [
-        "1372ea3f4869b57c"
-      ]
-    ]
-  },
-  {
-    "id": "0261d92e3758a46b",
-    "type": "delay",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Hold until quiet hours end",
-    "pauseType": "delayv",
-    "timeout": "1",
-    "timeoutUnits": "seconds",
-    "rate": "1",
-    "nbRateUnits": "1",
-    "rateUnits": "second",
-    "randomFirst": "1",
-    "randomLast": "5",
-    "randomUnits": "seconds",
-    "drop": false,
-    "allowrate": false,
-    "outputs": 1,
-    "x": 770,
-    "y": 160,
-    "wires": [
-      [
-        "f150c81d2647935a"
-      ]
-    ]
-  },
-  {
-    "id": "f150c81d2647935a",
-    "type": "alexa-remote-routine",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Announce architecture alert",
-    "account": "",
-    "routineNode": {
-      "type": "speak",
-      "payload": {
-        "type": "announcement",
-        "text": {
-          "type": "msg",
-          "value": "payload"
-        },
-      "devices": []
-      }
+    {
+        "id": "a6f7d2b4c8e19031",
+        "type": "tab",
+        "label": "Smart Litter Complete Pipeline",
+        "disabled": false,
+        "info": "One complete flow for the Smart Litter Monitor. It receives litter/# MQTT messages from python/export_petkit_csv.py, writes sensor, alert, and heartbeat data to InfluxDB for Grafana, validates and deduplicates the four alert types, and sends Alexa announcements outside quiet hours."
     },
-    "x": 1060,
-    "y": 120,
-    "wires": [
-      [
-        "2483fb40597ac68d"
-      ]
-    ]
-  },
-  {
-    "id": "1372ea3f4869b57c",
-    "type": "debug",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Alert validation and audit",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 780,
-    "y": 240,
-    "wires": []
-  },
-  {
-    "id": "2483fb40597ac68d",
-    "type": "debug",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Alexa result",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 1290,
-    "y": 120,
-    "wires": []
-  },
-  {
-    "id": "35940c516a7bd8e2",
-    "type": "inject",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Test no-visit alert",
-    "props": [
-      {
-        "p": "payload"
-      }
-    ],
-    "repeat": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "topic": "",
-    "payload": "",
-    "payloadType": "date",
-    "x": 160,
-    "y": 220,
-    "wires": [
-      [
-        "46a51d627b8ce9f3"
-      ]
-    ]
-  },
-  {
-    "id": "46a51d627b8ce9f3",
-    "type": "function",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Build unique test event",
-    "func": "const now = new Date();\nmsg.topic = \"litter/alerts/urgent\";\nmsg.payload = {\n    event_id: `manual-test-${now.getTime()}`,\n    event_type: \"alert_opened\",\n    alert_type: \"no_visit_24h\",\n    device_id: \"manual-test-device\",\n    device_name: \"Manual Test\",\n    pet_name: \"Cookie\",\n    qualification_timestamp: now.toISOString(),\n    notification: \"Test alert. Cookie has not used the litter box in the last 24 hours.\",\n    evidence: {\n        pet_name: \"Cookie\",\n        visit_count: 0,\n        window_hours: 24\n    },\n    source: \"node_red_manual_test\"\n};\nreturn msg;",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 370,
-    "y": 220,
-    "wires": [
-      [
-        "e04fb70c15368249",
-        "84dafb1526379e4b"
-      ]
-    ]
-  },
-  {
-    "id": "d04eb61a275893cf",
-    "type": "switch",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Alert topics only",
-    "property": "topic",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "regex",
-        "v": "^litter/alerts/(urgent|maintenance)$",
-        "vt": "str",
-        "case": false
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
-    "outputs": 1,
-    "x": 400,
-    "y": 100,
-    "wires": [
-      [
-        "e04fb70c15368249"
-      ]
-    ]
-  },
-  {
-    "id": "84dafb1526379e4b",
-    "type": "function",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Build InfluxDB point",
-    "d": true,
-    "func": "let data = msg.payload;\n\nif (Buffer.isBuffer(data)) {\n    data = data.toString(\"utf8\");\n}\nif (typeof data === \"string\") {\n    try {\n        data = JSON.parse(data);\n    } catch (error) {\n        node.warn(\"Ignored non-JSON MQTT payload\");\n        return null;\n    }\n}\nif (!data || typeof data !== \"object\" || Array.isArray(data)) {\n    node.warn(\"Ignored MQTT payload that is not an object\");\n    return null;\n}\n\nconst timestampValue = data.timestamp || data.qualification_timestamp;\nconst timestamp = new Date(timestampValue);\nif (Number.isNaN(timestamp.getTime())) {\n    node.warn(\"Ignored message with invalid timestamp\");\n    return null;\n}\n\nconst parts = String(msg.topic || \"\").split(\"/\");\nlet point;\nif (parts[0] === \"litter\" && parts[1] === \"sensor\") {\n    if (typeof data.metric !== \"string\" || data.value === null || data.value === undefined) {\n        node.warn(\"Ignored invalid sensor message\");\n        return null;\n    }\n    const numericValue = typeof data.value === \"boolean\"\n        ? data.value\n        : Number(data.value);\n    if (typeof numericValue === \"number\" && !Number.isFinite(numericValue)) {\n        node.warn(\"Ignored sensor message with a non-numeric value\");\n        return null;\n    }\n    const tags = {\n        device_id: String(data.device_id || \"unknown\"),\n        metric: data.metric\n    };\n    if (parts.length >= 4) {\n        tags.pet = parts[2];\n    }\n    point = {\n        measurement: \"litter_sensor\",\n        fields: {\n            value: numericValue,\n            unit: String(data.unit || \"\")\n        },\n        tags,\n        timestamp\n    };\n} else if (parts[0] === \"litter\" && parts[1] === \"alerts\") {\n    if (typeof data.alert_type !== \"string\" || typeof data.event_id !== \"string\") {\n        node.warn(\"Ignored invalid alert message\");\n        return null;\n    }\n    const tags = {\n        device_id: String(data.device_id || \"unknown\"),\n        alert_type: data.alert_type,\n        severity: parts[2] || \"unknown\"\n    };\n    if (data.pet_name) {\n        tags.pet = String(data.pet_name).toLowerCase();\n    }\n    point = {\n        measurement: \"litter_alert\",\n        fields: {\n            active: true,\n            event_id: data.event_id,\n            notification: String(data.notification || \"\")\n        },\n        tags,\n        timestamp\n    };\n} else if (parts[0] === \"litter\" && parts[1] === \"health\" && parts[2] === \"heartbeat\") {\n    point = {\n        measurement: \"litter_heartbeat\",\n        fields: {\n            status: String(data.status || \"unknown\"),\n            history_record_count: `${Number(data.history_record_count) || 0}i`,\n            litter_measurement_count: `${Number(data.litter_measurement_count) || 0}i`,\n            active_alert_count: `${Array.isArray(data.active_alerts) ? data.active_alerts.length : 0}i`\n        },\n        tags: {\n            device_id: String(data.device_id || \"unknown\")\n        },\n        timestamp\n    };\n} else {\n    return null;\n}\n\nmsg.payload = [point];\nmsg.influx_measurement = point.measurement;\nnode.status({ fill: \"green\", shape: \"dot\", text: point.measurement });\nreturn msg;",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 470,
-    "y": 360,
-    "wires": [
-      [
-        "95eb0c263748af5c"
-      ]
-    ]
-  },
-  {
-    "id": "95eb0c263748af5c",
-    "type": "influxdb batch",
-    "z": "a6f7d2b4c8e19031",
-    "d": true,
-    "influxdb": "b82f3a596a7cd180",
-    "name": "Store smart-litter points",
-    "precision": "",
-    "retentionPolicy": "",
-    "database": "",
-    "precisionV18FluxV20": "ms",
-    "retentionPolicyV18Flux": "",
-    "org": "smart-litter",
-    "bucket": "smart-litter",
-    "x": 760,
-    "y": 360,
-    "wires": []
-  },
-  {
-    "id": "a6fc1d374859b06d",
-    "type": "catch",
-    "z": "a6f7d2b4c8e19031",
-    "name": "Catch InfluxDB write errors",
-    "d": true,
-    "scope": [
-      "95eb0c263748af5c"
-    ],
-    "uncaught": false,
-    "x": 480,
-    "y": 430,
-    "wires": [
-      [
-        "b70d2e48596ac17e"
-      ]
-    ]
-  },
-  {
-    "id": "b70d2e48596ac17e",
-    "type": "debug",
-    "z": "a6f7d2b4c8e19031",
-    "name": "InfluxDB write error",
-    "d": true,
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 760,
-    "y": 430,
-    "wires": []
-  },
-  {
-    "id": "d93ea6fb04257138",
-    "type": "mqtt-broker",
-    "name": "Local Mosquitto",
-    "broker": "127.0.0.1",
-    "port": 1883,
-    "clientid": "node-red-smart-litter-alerts",
-    "autoConnect": true,
-    "usetls": false,
-    "protocolVersion": 4,
-    "keepalive": 60,
-    "cleansession": true,
-    "autoUnsubscribe": true,
-    "birthTopic": "",
-    "birthQos": "0",
-    "birthRetain": "false",
-    "birthPayload": "",
-    "birthMsg": {},
-    "closeTopic": "",
-    "closeQos": "0",
-    "closeRetain": "false",
-    "closePayload": "",
-    "closeMsg": {},
-    "willTopic": "",
-    "willQos": "0",
-    "willRetain": "false",
-    "willPayload": "",
-    "willMsg": {},
-    "userProps": "",
-    "sessionExpiry": ""
-  },
-  {
-    "id": "b82f3a596a7cd180",
-    "type": "influxdb",
-    "hostname": "127.0.0.1",
-    "port": 8086,
-    "protocol": "http",
-    "database": "",
-    "name": "Smart Litter InfluxDB 2.x",
-    "usetls": false,
-    "tls": "",
-    "influxdbVersion": "2.0",
-    "url": "http://127.0.0.1:8086",
-    "timeout": 10,
-    "rejectUnauthorized": true
-  }
+    {
+        "id": "d93ea6fb04257138",
+        "type": "mqtt-broker",
+        "name": "Local Mosquitto",
+        "broker": "mosquitto",
+        "port": 1883,
+        "clientid": "node-red-smart-litter-alerts",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "b82f3a596a7cd180",
+        "type": "influxdb",
+        "hostname": "influxdb",
+        "port": 8086,
+        "protocol": "http",
+        "database": "litter_monitor",
+        "name": "Smart Litter InfluxDB 2.x",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://influxdb:8086",
+        "timeout": 10,
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "b71c84d9e2035f16",
+        "type": "comment",
+        "z": "a6f7d2b4c8e19031",
+        "name": "One flow: MQTT, validation, InfluxDB, Grafana data, and Alexa",
+        "info": "Subscribes to litter/#. Alerts are validated, deduplicated, held during quiet hours, and routed to Alexa. The InfluxDB branch is included but disabled for the current phase. Configure your own Alexa account and Echo device after importing.",
+        "x": 360,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "c82d95eaf3146027",
+        "type": "mqtt in",
+        "z": "a6f7d2b4c8e19031",
+        "name": "All smart-litter topics",
+        "topic": "litter/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "d93ea6fb04257138",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 120,
+        "wires": [
+            [
+                "d04eb61a275893cf",
+                "84dafb1526379e4b"
+            ]
+        ]
+    },
+    {
+        "id": "e04fb70c15368249",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Validate, deduplicate, route",
+        "func": "let event = msg.payload;\n\nfunction rejected(reason) {\n    node.warn(`Rejected alert: ${reason}`);\n    node.status({ fill: \"red\", shape: \"ring\", text: reason });\n    return [null, null, {\n        ...msg,\n        payload: {\n            valid: false,\n            reason,\n            received: event\n        }\n    }];\n}\n\nif (Buffer.isBuffer(event)) {\n    event = event.toString(\"utf8\");\n}\nif (typeof event === \"string\") {\n    try {\n        event = JSON.parse(event);\n    } catch (error) {\n        return rejected(\"invalid JSON\");\n    }\n}\nif (!event || typeof event !== \"object\" || Array.isArray(event)) {\n    return rejected(\"payload is not an object\");\n}\n\nconst topicClass = String(msg.topic || \"\").split(\"/\").pop();\nconst expectedTopicClass = {\n    fast_consumption: \"urgent\",\n    no_visit_24h: \"urgent\",\n    litter_lacking: \"maintenance\",\n    waste_bin_full: \"maintenance\"\n};\nconst requiredStrings = [\n    \"event_id\",\n    \"event_type\",\n    \"alert_type\",\n    \"device_id\",\n    \"qualification_timestamp\",\n    \"notification\"\n];\nfor (const field of requiredStrings) {\n    if (typeof event[field] !== \"string\" || !event[field].trim()) {\n        return rejected(`missing or invalid ${field}`);\n    }\n}\nif (event.event_type !== \"alert_opened\") {\n    return rejected(\"event_type must be alert_opened\");\n}\nif (!Object.hasOwn(expectedTopicClass, event.alert_type)) {\n    return rejected(\"unsupported alert_type\");\n}\nif (expectedTopicClass[event.alert_type] !== topicClass) {\n    return rejected(\"alert_type does not match MQTT topic\");\n}\nif (Number.isNaN(Date.parse(event.qualification_timestamp))) {\n    return rejected(\"invalid qualification_timestamp\");\n}\nif (event.alert_type === \"no_visit_24h\" &&\n    (typeof event.pet_name !== \"string\" || !event.pet_name.trim())) {\n    return rejected(\"no_visit_24h requires pet_name\");\n}\n\nconst deduplicationKey = `${event.event_type}|${event.alert_type}|${event.event_id}`;\nconst processed = flow.get(\"processedArchitectureAlertIds\") || [];\nif (processed.includes(deduplicationKey)) {\n    node.status({ fill: \"yellow\", shape: \"ring\", text: \"duplicate suppressed\" });\n    return [null, null, {\n        ...msg,\n        payload: {\n            valid: true,\n            duplicate: true,\n            event\n        }\n    }];\n}\nprocessed.push(deduplicationKey);\nflow.set(\"processedArchitectureAlertIds\", processed.slice(-500));\n\nconst now = new Date();\nconst voiceMessage = {\n    ...msg,\n    event,\n    payload: event.notification\n};\nconst auditMessage = {\n    ...msg,\n    payload: {\n        valid: true,\n        duplicate: false,\n        event\n    }\n};\nconst hour = now.getHours();\nconst quietHours = hour >= 22 || hour < 7;\nif (quietHours) {\n    const resumeAt = new Date(now);\n    resumeAt.setHours(7, 0, 0, 0);\n    if (resumeAt <= now) {\n        resumeAt.setDate(resumeAt.getDate() + 1);\n    }\n    voiceMessage.delay = resumeAt.getTime() - now.getTime();\n    auditMessage.payload.voice_delivery = \"delayed_until_07:00\";\n    auditMessage.payload.delay_ms = voiceMessage.delay;\n    node.status({ fill: \"blue\", shape: \"ring\", text: \"queued for 07:00\" });\n    return [null, voiceMessage, auditMessage];\n}\n\nauditMessage.payload.voice_delivery = \"immediate\";\nnode.status({ fill: \"green\", shape: \"dot\", text: event.alert_type });\nreturn [voiceMessage, null, auditMessage];",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 470,
+        "y": 140,
+        "wires": [
+            [
+                "f150c81d2647935a"
+            ],
+            [
+                "0261d92e3758a46b"
+            ],
+            [
+                "1372ea3f4869b57c"
+            ]
+        ],
+        "outputLabels": [
+            "Immediate voice",
+            "Quiet-hours queue",
+            "Audit"
+        ]
+    },
+    {
+        "id": "0261d92e3758a46b",
+        "type": "delay",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Hold until quiet hours end",
+        "pauseType": "delayv",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 770,
+        "y": 160,
+        "wires": [
+            [
+                "f150c81d2647935a"
+            ]
+        ]
+    },
+    {
+        "id": "f150c81d2647935a",
+        "type": "alexa-remote-routine",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Announce architecture alert",
+        "account": "",
+        "routineNode": {
+            "type": "speak",
+            "payload": {
+                "type": "announcement",
+                "text": {
+                    "type": "msg",
+                    "value": "payload"
+                },
+                "devices": []
+            }
+        },
+        "x": 1060,
+        "y": 120,
+        "wires": [
+            [
+                "2483fb40597ac68d"
+            ]
+        ]
+    },
+    {
+        "id": "1372ea3f4869b57c",
+        "type": "debug",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Alert validation and audit",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 780,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "2483fb40597ac68d",
+        "type": "debug",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Alexa result",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1290,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "35940c516a7bd8e2",
+        "type": "inject",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Test no-visit alert",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 220,
+        "wires": [
+            [
+                "46a51d627b8ce9f3"
+            ]
+        ]
+    },
+    {
+        "id": "46a51d627b8ce9f3",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Build unique test event",
+        "func": "const now = new Date();\nmsg.topic = \"litter/alerts/urgent\";\nmsg.payload = {\n    event_id: `manual-test-${now.getTime()}`,\n    event_type: \"alert_opened\",\n    alert_type: \"no_visit_24h\",\n    device_id: \"manual-test-device\",\n    device_name: \"Manual Test\",\n    pet_name: \"Cookie\",\n    qualification_timestamp: now.toISOString(),\n    notification: \"Test alert. Cookie has not used the litter box in the last 24 hours.\",\n    evidence: {\n        pet_name: \"Cookie\",\n        visit_count: 0,\n        window_hours: 24\n    },\n    source: \"node_red_manual_test\"\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 220,
+        "wires": [
+            [
+                "e04fb70c15368249",
+                "84dafb1526379e4b"
+            ]
+        ]
+    },
+    {
+        "id": "d04eb61a275893cf",
+        "type": "switch",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Alert topics only",
+        "property": "topic",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "regex",
+                "v": "^litter/alerts/(urgent|maintenance)$",
+                "vt": "str",
+                "case": false
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 400,
+        "y": 100,
+        "wires": [
+            [
+                "e04fb70c15368249"
+            ]
+        ]
+    },
+    {
+        "id": "84dafb1526379e4b",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Build InfluxDB point",
+        "func": "let data = msg.payload;\n\nif (Buffer.isBuffer(data)) {\n    data = data.toString(\"utf8\");\n}\nif (typeof data === \"string\") {\n    try {\n        data = JSON.parse(data);\n    } catch (error) {\n        node.warn(\"Ignored non-JSON MQTT payload\");\n        return null;\n    }\n}\nif (!data || typeof data !== \"object\" || Array.isArray(data)) {\n    node.warn(\"Ignored MQTT payload that is not an object\");\n    return null;\n}\n\nconst timestampValue = data.timestamp || data.qualification_timestamp;\nconst timestamp = new Date(timestampValue);\nif (Number.isNaN(timestamp.getTime())) {\n    node.warn(\"Ignored message with invalid timestamp\");\n    return null;\n}\n\nconst parts = String(msg.topic || \"\").split(\"/\");\nlet point;\nif (parts[0] === \"litter\" && parts[1] === \"sensor\") {\n    if (typeof data.metric !== \"string\" || data.value === null || data.value === undefined) {\n        node.warn(\"Ignored invalid sensor message\");\n        return null;\n    }\n    const numericValue = typeof data.value === \"boolean\"\n        ? (data.value ? 1 : 0)\n        : Number(data.value);\n    if (typeof numericValue === \"number\" && !Number.isFinite(numericValue)) {\n        node.warn(\"Ignored sensor message with a non-numeric value\");\n        return null;\n    }\n    const tags = {\n        device_id: String(data.device_id || \"unknown\"),\n        metric: data.metric\n    };\n    if (parts.length >= 4) {\n        tags.pet = parts[2];\n    }\n    point = {\n        measurement: \"litter_sensor\",\n        fields: {\n            value: numericValue,\n            unit: String(data.unit || \"\")\n        },\n        tags,\n        timestamp\n    };\n} else if (parts[0] === \"litter\" && parts[1] === \"alerts\") {\n    if (typeof data.alert_type !== \"string\" || typeof data.event_id !== \"string\") {\n        node.warn(\"Ignored invalid alert message\");\n        return null;\n    }\n    const tags = {\n        device_id: String(data.device_id || \"unknown\"),\n        alert_type: data.alert_type,\n        severity: parts[2] || \"unknown\"\n    };\n    if (data.pet_name) {\n        tags.pet = String(data.pet_name).toLowerCase();\n    }\n    point = {\n        measurement: \"litter_alert\",\n        fields: {\n            active: true,\n            event_id: data.event_id,\n            notification: String(data.notification || \"\")\n        },\n        tags,\n        timestamp\n    };\n} else if (parts[0] === \"litter\" && parts[1] === \"health\" && parts[2] === \"heartbeat\") {\n    point = {\n        measurement: \"litter_heartbeat\",\n        fields: {\n            status: String(data.status || \"unknown\"),\n            history_record_count: `${Number(data.history_record_count) || 0}i`,\n            litter_measurement_count: `${Number(data.litter_measurement_count) || 0}i`,\n            active_alert_count: `${Array.isArray(data.active_alerts) ? data.active_alerts.length : 0}i`\n        },\n        tags: {\n            device_id: String(data.device_id || \"unknown\")\n        },\n        timestamp\n    };\n} else {\n    return null;\n}\n\nmsg.payload = [point];\nmsg.influx_measurement = point.measurement;\nnode.status({ fill: \"green\", shape: \"dot\", text: point.measurement });\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 500,
+        "y": 360,
+        "wires": [
+            [
+                "95eb0c263748af5c"
+            ]
+        ]
+    },
+    {
+        "id": "a6fc1d374859b06d",
+        "type": "catch",
+        "z": "a6f7d2b4c8e19031",
+        "d": true,
+        "name": "Catch InfluxDB write errors",
+        "scope": [
+            "95eb0c263748af5c"
+        ],
+        "uncaught": false,
+        "x": 480,
+        "y": 430,
+        "wires": [
+            [
+                "b70d2e48596ac17e"
+            ]
+        ]
+    },
+    {
+        "id": "b70d2e48596ac17e",
+        "type": "debug",
+        "z": "a6f7d2b4c8e19031",
+        "d": true,
+        "name": "InfluxDB write error",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 760,
+        "y": 430,
+        "wires": []
+    },
+    {
+        "id": "95eb0c263748af5c",
+        "type": "influxdb batch",
+        "z": "a6f7d2b4c8e19031",
+        "influxdb": "b82f3a596a7cd180",
+        "precision": "",
+        "retentionPolicy": "",
+        "name": "Store smart-litter points",
+        "database": "",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "smart-litter",
+        "bucket": "litter_monitor",
+        "x": 760,
+        "y": 360,
+        "wires": []
+    }
 ]

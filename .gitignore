@@ -29,3 +29,10 @@ venv/
 *.pem
 *.key
 *.crt
+
+# Node-RED encrypted credentials — each person re-enters these locally
+node-red/*_cred.json
+node-red/.*.backup
+
+# Local team notes, shared via Slack
+SETUP_FOR_TEAM.md
