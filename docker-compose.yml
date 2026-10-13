@@ -14,6 +14,7 @@ services:
     container_name: slm-node-red
     ports:
       - "1880:1880"
+      - "3456:3456"
     volumes:
       - ./node-red:/data/flows
       - ./node-red/settings.js:/data/settings.js:ro
@@ -21,6 +22,7 @@ services:
     environment:
       - FLOWS=flows/smart_litter_complete.json
       - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET}
+      - TZ=${PETKIT_TIMEZONE:-Australia/Sydney}
     depends_on:
       - mosquitto
       - influxdb
