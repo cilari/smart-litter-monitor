@@ -1,0 +1,5 @@
+pypetkitapi
+aiohttp
+paho-mqtt
+python-dotenv
+pytest
