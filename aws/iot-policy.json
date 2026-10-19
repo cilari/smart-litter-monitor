@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowConnect",
+      "Effect": "Allow",
+      "Action": "iot:Connect",
+      "Resource": "arn:aws:iot:REGION:ACCOUNT_ID:client/smart-litter-nodered"
+    },
+    {
+      "Sid": "AllowPublishSensorData",
+      "Effect": "Allow",
+      "Action": "iot:Publish",
+      "Resource": "arn:aws:iot:REGION:ACCOUNT_ID:topic/cps/sensor/data"
+    },
+    {
+      "Sid": "AllowPublishAlerts",
+      "Effect": "Allow",
+      "Action": "iot:Publish",
+      "Resource": [
+        "arn:aws:iot:REGION:ACCOUNT_ID:topic/cps/alerts/urgent",
+        "arn:aws:iot:REGION:ACCOUNT_ID:topic/cps/alerts/maintenance"
+      ]
+    }
+  ]
+}

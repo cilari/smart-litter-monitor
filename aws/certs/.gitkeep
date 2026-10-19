@@ -1,0 +1,6 @@
+# This folder holds AWS IoT Core device certificates (NOT committed to git).
+# Place your three downloaded files here:
+#   - device-certificate.pem.crt   (device certificate)
+#   - device-private.pem.key       (private key)
+#   - AmazonRootCA1.pem            (Amazon Root CA 1)
+# The *.pem / *.key / *.crt files are gitignored; only this .gitkeep is tracked.

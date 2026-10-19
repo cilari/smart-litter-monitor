@@ -18,6 +18,9 @@ services:
       - ./node-red:/data/flows
       - ./node-red/settings.js:/data/settings.js:ro
       - node-red-data:/data
+      # AWS IoT Core device certificates, mounted read-only (gitignored on host).
+      # Node-RED TLS config references these at /data/certs/*
+      - ./aws/certs:/data/certs:ro
     environment:
       - FLOWS=flows/smart_litter_complete.json
       - NODE_RED_CREDENTIAL_SECRET=${NODE_RED_CREDENTIAL_SECRET}
@@ -75,9 +78,9 @@ services:
       - mosquitto
     restart: unless-stopped
 
-  # AWS IoT Core bridge — Person C configures this
-  # aws-iot-bridge:
-  #   (to be added)
+  # AWS IoT Core integration is implemented inside the node-red service above:
+  # Node-RED publishes structured JSON to topic cps/sensor/data over TLS (8883),
+  # using the device certificates mounted at /data/certs. See aws/README.md.
 
 volumes:
   node-red-data:
