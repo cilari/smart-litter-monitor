@@ -53,6 +53,53 @@
         "rejectUnauthorized": true
     },
     {
+        "id": "awsiot_tls_0001",
+        "type": "tls-config",
+        "name": "AWS IoT certs",
+        "certType": "files",
+        "cert": "/data/certs/8061cb9fff7c7f89ccd12a30d4c8f4f6df2aba81afc06734a22a87e068c97d4b-certificate.pem.crt",
+        "key": "/data/certs/8061cb9fff7c7f89ccd12a30d4c8f4f6df2aba81afc06734a22a87e068c97d4b-private.pem.key",
+        "ca": "/data/certs/AmazonRootCA1.pem",
+        "certname": "",
+        "keyname": "",
+        "caname": "",
+        "servername": "",
+        "verifyservercert": true,
+        "alpnprotocol": ""
+    },
+    {
+        "id": "awsiot_broker_01",
+        "type": "mqtt-broker",
+        "name": "AWS IoT Core",
+        "broker": "a1holx1qfef8q2-ats.iot.ap-southeast-2.amazonaws.com",
+        "port": 8883,
+        "tls": "awsiot_tls_0001",
+        "clientid": "smart-litter-nodered",
+        "autoConnect": true,
+        "usetls": true,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
         "id": "b71c84d9e2035f16",
         "type": "comment",
         "z": "a6f7d2b4c8e19031",
@@ -80,7 +127,9 @@
         "wires": [
             [
                 "d04eb61a275893cf",
-                "84dafb1526379e4b"
+                "84dafb1526379e4b",
+                "awsiot_buildjson1",
+                "47dff41126630e55"
             ]
         ]
     },
@@ -371,6 +420,82 @@
         "bucket": "litter_monitor",
         "x": 760,
         "y": 360,
+        "wires": []
+    },
+    {
+        "id": "awsiot_buildjson1",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Build AWS IoT JSON (cps/sensor/data)",
+        "func": "// Forward only real sensor readings to AWS IoT Core as the assessment schema.\nlet data = msg.payload;\nif (Buffer.isBuffer(data)) { data = data.toString(\"utf8\"); }\nif (typeof data === \"string\") {\n    try { data = JSON.parse(data); } catch (e) { return null; }\n}\nif (!data || typeof data !== \"object\" || Array.isArray(data)) { return null; }\n\nconst parts = String(msg.topic || \"\").split(\"/\");\n// Only litter/sensor/... messages (skip alerts and heartbeat)\nif (parts[0] !== \"litter\" || parts[1] !== \"sensor\") { return null; }\nif (typeof data.metric !== \"string\" || data.value === null || data.value === undefined) { return null; }\n\n// Boolean sensors (box_full, sand_lack) -> 1/0, consistent with InfluxDB storage\nconst value = typeof data.value === \"boolean\" ? (data.value ? 1 : 0) : Number(data.value);\nif (!Number.isFinite(value)) { return null; }\n\n// Pet-scoped topics (litter/sensor/cookie/visit_rate) -> sensor name includes the pet\nconst sensorName = parts.length >= 4 ? parts[2] + \"_\" + data.metric : data.metric;\n\nconst out = {\n    device_id: String(data.device_id || \"petkit_pura_x\"),\n    sensor: sensorName,\n    value: value,\n    timestamp: data.timestamp || new Date().toISOString()\n};\n\nmsg.payload = JSON.stringify(out);\nmsg.topic = \"cps/sensor/data\";\nnode.status({ fill: \"blue\", shape: \"dot\", text: sensorName + \"=\" + value });\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 520,
+        "wires": [
+            [
+                "awsiot_mqttout01"
+            ]
+        ]
+    },
+    {
+        "id": "awsiot_mqttout01",
+        "type": "mqtt out",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Publish to AWS IoT Core",
+        "topic": "cps/sensor/data",
+        "qos": "1",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "awsiot_broker_01",
+        "x": 810,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "47dff41126630e55",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Filter alerts for cloud",
+        "func": "// Forward only alert messages to the cloud, preserving urgent/maintenance split.\n  const parts = String(msg.topic || \"\").split(\"/\");\n\n  // Keep only litter/alerts/... (skip sensors and heartbeat)\n  if (parts[0] !== \"litter\" || parts[1] !== \"alerts\") {\n      return null;\n  }\n\n  const severity = parts[2] || \"general\";   // \"urgent\" or \"maintenance\"\n  msg.topic = \"cps/alerts/\" + severity;      // -> cps/alerts/urgent or cps/alerts/maintenance\n\n  // MQTT out needs a string payload\n  if (typeof msg.payload !== \"string\") {\n      msg.payload = JSON.stringify(msg.payload);\n  }\n\n  node.status({ fill: \"yellow\", shape: \"dot\", text: \"alert -> \" + msg.topic });\n  return msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 660,
+        "wires": [
+            [
+                "e2a0046f4d9a96f1"
+            ]
+        ]
+    },
+    {
+        "id": "e2a0046f4d9a96f1",
+        "type": "mqtt out",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Publish alerts to AWS",
+        "topic": "",
+        "qos": "1",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "awsiot_broker_01",
+        "x": 740,
+        "y": 660,
         "wires": []
     }
 ]
