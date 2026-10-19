@@ -1,0 +1,362 @@
+{
+  "uid": "smart-litter-monitor",
+  "title": "Smart Litter Monitor",
+  "tags": ["cps", "petkit"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "1m",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Current status",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "gauge",
+      "title": "Litter level",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"litter_sensor\" and r.metric == \"sand_percent\" and r._field == \"value\")\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "displayName": "Litter",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 20 },
+              { "color": "green", "value": 40 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Waste bin",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 7, "w": 4, "x": 6, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"litter_sensor\" and r.metric == \"box_full\" and r._field == \"value\")\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Waste bin",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "OK", "color": "green", "index": 0 },
+                "1": { "text": "FULL", "color": "red", "index": 1 }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Litter supply",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 7, "w": 4, "x": 10, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"litter_sensor\" and r.metric == \"sand_lack\" and r._field == \"value\")\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Litter supply",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "OK", "color": "green", "index": 0 },
+                "1": { "text": "LOW", "color": "orange", "index": 1 }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Pipeline: minutes since last heartbeat",
+      "description": "The collector publishes a heartbeat every 5 minutes. Over 15 minutes means the pipeline is broken, not the cat.",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 7, "w": 5, "x": 14, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"litter_heartbeat\" and r._field == \"status\")\n  |> last()\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: uint(v: now()) - uint(v: r._time)) / 60000000000.0}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Since heartbeat",
+          "unit": "m",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 15 },
+              { "color": "red", "value": 60 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Active alerts",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 7, "w": 5, "x": 19, "y": 1 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"litter_heartbeat\" and r._field == \"active_alert_count\")\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Active alerts",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Trends",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Litter level over time",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"litter_sensor\" and r.metric == \"sand_percent\" and r._field == \"value\")\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Litter level",
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 15, "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "single" } }
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "Pipeline heartbeats per hour (expected 12)",
+      "description": "Each bar should reach 12. Short or missing bars are data-collection gaps, e.g. when the host machine sleeps.",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"litter_heartbeat\" and r._field == \"status\")\n  |> aggregateWindow(every: 1h, fn: count, createEmpty: true)\n  |> keep(columns: [\"_time\", \"_value\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "Heartbeats",
+          "min": 0,
+          "max": 12,
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 6 },
+              { "color": "green", "value": 11 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "xField": "_time",
+        "xTickLabelSpacing": 100,
+        "barWidth": 0.9,
+        "legend": { "showLegend": false, "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Visits per cat (rolling 24h)",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"litter_sensor\" and r.metric == \"visit_rate\" and r._field == \"value\")\n  |> keep(columns: [\"_time\", \"_value\", \"pet\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.pet}",
+          "unit": "short",
+          "min": 0,
+          "decimals": 0,
+          "custom": { "lineWidth": 2, "lineInterpolation": "stepAfter", "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Average visit duration per cat",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"litter_sensor\" and r.metric == \"avg_duration\" and r._field == \"value\")\n  |> keep(columns: [\"_time\", \"_value\", \"pet\"])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.pet}",
+          "unit": "s",
+          "min": 0,
+          "custom": { "lineWidth": 2, "spanNulls": false }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Alerts",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "panels": []
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Alert history",
+      "datasource": { "type": "influxdb", "uid": "slm-influxdb" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"litter_monitor\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"litter_alert\" and r._field == \"notification\")\n  |> group()\n  |> keep(columns: [\"_time\", \"severity\", \"alert_type\", \"pet\", \"_value\"])\n  |> rename(columns: {_value: \"notification\"})\n  |> sort(columns: [\"_time\"], desc: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "_time" }, "properties": [{ "id": "displayName", "value": "Time" }, { "id": "custom.width", "value": 190 }] },
+          { "matcher": { "id": "byName", "options": "severity" }, "properties": [
+            { "id": "displayName", "value": "Severity" },
+            { "id": "custom.width", "value": 120 },
+            { "id": "custom.cellOptions", "value": { "type": "color-background" } },
+            { "id": "mappings", "value": [{ "type": "value", "options": { "urgent": { "color": "red", "index": 0 }, "maintenance": { "color": "orange", "index": 1 } } }] }
+          ] },
+          { "matcher": { "id": "byName", "options": "alert_type" }, "properties": [{ "id": "displayName", "value": "Alert" }, { "id": "custom.width", "value": 170 }] },
+          { "matcher": { "id": "byName", "options": "pet" }, "properties": [{ "id": "displayName", "value": "Cat" }, { "id": "custom.width", "value": 90 }] },
+          { "matcher": { "id": "byName", "options": "notification" }, "properties": [{ "id": "displayName", "value": "Message" }] }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm" }
+    }
+  ]
+}
