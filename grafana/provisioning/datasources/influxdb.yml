@@ -1,7 +1,14 @@
 apiVersion: 1
 
+# Removes datasources created before the fixed uid was added, so provisioning
+# can recreate it cleanly on machines that already ran an older setup.
+deleteDatasources:
+  - name: InfluxDB
+    orgId: 1
+
 datasources:
   - name: InfluxDB
+    uid: slm-influxdb
     type: influxdb
     access: proxy
     url: http://influxdb:8086
@@ -10,6 +17,6 @@ datasources:
       organization: smart-litter
       defaultBucket: litter_monitor
     secureJsonData:
-      token: slm-dev-token-change-in-production
+      token: $INFLUXDB_TOKEN
     isDefault: true
     editable: true
