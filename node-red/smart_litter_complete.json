@@ -105,7 +105,7 @@
         "z": "a6f7d2b4c8e19031",
         "name": "One flow: MQTT, validation, InfluxDB, Grafana data, and Alexa",
         "info": "Subscribes to litter/#. Alerts are validated, deduplicated, held during quiet hours, and routed to Alexa announcements and mobile push notifications. Sensor, alert, and heartbeat messages are also written to InfluxDB for Grafana. Configure your own Alexa account and Echo device after importing.",
-        "x": 360,
+        "x": 330,
         "y": 40,
         "wires": []
     },
@@ -122,13 +122,12 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 170,
-        "y": 120,
+        "x": 140,
+        "y": 360,
         "wires": [
             [
                 "d04eb61a275893cf",
-                "84dafb1526379e4b",
-                "awsiot_buildjson1",
+                "slm_validate01",
                 "47dff41126630e55"
             ]
         ]
@@ -145,8 +144,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 470,
-        "y": 140,
+        "x": 640,
+        "y": 120,
         "wires": [
             [
                 "f150c81d2647935a",
@@ -182,8 +181,8 @@
         "drop": false,
         "allowrate": false,
         "outputs": 1,
-        "x": 770,
-        "y": 160,
+        "x": 910,
+        "y": 180,
         "wires": [
             [
                 "f150c81d2647935a",
@@ -208,8 +207,8 @@
                 "devices": []
             }
         },
-        "x": 1060,
-        "y": 120,
+        "x": 1180,
+        "y": 100,
         "wires": [
             [
                 "2483fb40597ac68d"
@@ -235,8 +234,8 @@
                 }
             }
         },
-        "x": 1060,
-        "y": 180,
+        "x": 1180,
+        "y": 160,
         "wires": [
             [
                 "2483fb40597ac68d"
@@ -256,7 +255,7 @@
         "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 780,
+        "x": 910,
         "y": 240,
         "wires": []
     },
@@ -273,8 +272,8 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1290,
-        "y": 150,
+        "x": 1430,
+        "y": 130,
         "wires": []
     },
     {
@@ -294,8 +293,8 @@
         "topic": "",
         "payload": "",
         "payloadType": "date",
-        "x": 160,
-        "y": 220,
+        "x": 140,
+        "y": 260,
         "wires": [
             [
                 "46a51d627b8ce9f3"
@@ -314,12 +313,12 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 370,
-        "y": 220,
+        "x": 380,
+        "y": 260,
         "wires": [
             [
                 "e04fb70c15368249",
-                "84dafb1526379e4b"
+                "slm_validate01"
             ]
         ]
     },
@@ -341,8 +340,8 @@
         "checkall": "true",
         "repair": false,
         "outputs": 1,
-        "x": 400,
-        "y": 100,
+        "x": 380,
+        "y": 120,
         "wires": [
             [
                 "e04fb70c15368249"
@@ -361,7 +360,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 500,
+        "x": 1180,
         "y": 360,
         "wires": [
             [
@@ -373,14 +372,13 @@
         "id": "a6fc1d374859b06d",
         "type": "catch",
         "z": "a6f7d2b4c8e19031",
-        "d": true,
         "name": "Catch InfluxDB write errors",
         "scope": [
             "95eb0c263748af5c"
         ],
         "uncaught": false,
-        "x": 480,
-        "y": 430,
+        "x": 920,
+        "y": 420,
         "wires": [
             [
                 "b70d2e48596ac17e"
@@ -391,7 +389,6 @@
         "id": "b70d2e48596ac17e",
         "type": "debug",
         "z": "a6f7d2b4c8e19031",
-        "d": true,
         "name": "InfluxDB write error",
         "active": true,
         "tosidebar": true,
@@ -401,8 +398,8 @@
         "targetType": "full",
         "statusVal": "",
         "statusType": "auto",
-        "x": 760,
-        "y": 430,
+        "x": 1180,
+        "y": 420,
         "wires": []
     },
     {
@@ -418,7 +415,7 @@
         "retentionPolicyV18Flux": "",
         "org": "smart-litter",
         "bucket": "litter_monitor",
-        "x": 760,
+        "x": 1430,
         "y": 360,
         "wires": []
     },
@@ -434,8 +431,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 440,
-        "y": 520,
+        "x": 920,
+        "y": 500,
         "wires": [
             [
                 "awsiot_mqttout01"
@@ -456,8 +453,8 @@
         "correl": "",
         "expiry": "",
         "broker": "awsiot_broker_01",
-        "x": 810,
-        "y": 520,
+        "x": 1240,
+        "y": 500,
         "wires": []
     },
     {
@@ -472,8 +469,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 360,
-        "y": 660,
+        "x": 920,
+        "y": 560,
         "wires": [
             [
                 "e2a0046f4d9a96f1"
@@ -494,8 +491,90 @@
         "correl": "",
         "expiry": "",
         "broker": "awsiot_broker_01",
-        "x": 740,
-        "y": 660,
+        "x": 1240,
+        "y": 560,
         "wires": []
+    },
+    {
+        "id": "slm_validate01",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Validate sensor readings",
+        "func": "// Validates litter/sensor/* readings before storage and cloud publishing.\n// Output 1: accepted readings (and every non-sensor message, unchanged).\n// Output 2: rejected readings with a reason, for the event log.\nconst RULES = {\n    sand_percent: { min: 0, max: 100 },\n    box_full: { boolean: true },\n    sand_lack: { boolean: true },\n    visit_rate: { min: 0, max: 50 },\n    avg_duration: { min: 0, max: 1800 }\n};\n\nconst parts = String(msg.topic || \"\").split(\"/\");\nif (parts[0] !== \"litter\" || parts[1] !== \"sensor\") {\n    return [msg, null];\n}\n\nfunction reject(reason) {\n    const count = (context.get(\"rejected\") || 0) + 1;\n    context.set(\"rejected\", count);\n    node.status({ fill: \"red\", shape: \"ring\", text: `rejected ${count}: ${reason}` });\n    return [null, { topic: msg.topic, payload: msg.payload, log_status: \"rejected\", log_reason: reason }];\n}\n\nlet data = msg.payload;\nif (Buffer.isBuffer(data)) {\n    data = data.toString(\"utf8\");\n}\nif (typeof data === \"string\") {\n    try {\n        data = JSON.parse(data);\n    } catch (error) {\n        return reject(\"payload is not valid JSON\");\n    }\n}\nif (!data || typeof data !== \"object\" || Array.isArray(data)) {\n    return reject(\"payload is not an object\");\n}\n\nconst rule = RULES[data.metric];\nif (!rule) {\n    return reject(`unknown metric ${data.metric}`);\n}\nif (data.value === null || data.value === undefined || data.value === \"\") {\n    return reject(\"missing value\");\n}\nif (Number.isNaN(new Date(data.timestamp).getTime())) {\n    return reject(\"missing or invalid timestamp\");\n}\n\nif (rule.boolean) {\n    if (![true, false, 0, 1].includes(data.value)) {\n        return reject(`expected true/false, got ${data.value}`);\n    }\n} else {\n    const value = Number(data.value);\n    if (!Number.isFinite(value)) {\n        return reject(`not a number: ${data.value}`);\n    }\n    if (value < rule.min || value > rule.max) {\n        return reject(`out of range: ${value} outside ${rule.min}-${rule.max}`);\n    }\n}\n\nconst accepted = (context.get(\"accepted\") || 0) + 1;\ncontext.set(\"accepted\", accepted);\nnode.status({ fill: \"green\", shape: \"dot\", text: `accepted ${accepted}, rejected ${context.get(\"rejected\") || 0}` });\nmsg.payload = data;\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 650,
+        "y": 360,
+        "wires": [
+            [
+                "slm_smooth0001",
+                "awsiot_buildjson1",
+                "slm_logfmt0001"
+            ],
+            [
+                "slm_logfmt0001"
+            ]
+        ]
+    },
+    {
+        "id": "slm_smooth0001",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Smooth litter level (moving avg 5)",
+        "func": "// 5-point moving average of the litter level, stored alongside the raw value\n// as metric sand_percent_smoothed. Every message passes through unchanged.\nconst WINDOW = 5;\n\nif (msg.topic !== \"litter/sensor/sand_percent\") {\n    return msg;\n}\n\nconst data = msg.payload;\nconst key = `history_${data.device_id}`;\nconst history = context.get(key) || [];\nhistory.push(Number(data.value));\nwhile (history.length > WINDOW) {\n    history.shift();\n}\ncontext.set(key, history);\n\nconst mean = history.reduce((sum, value) => sum + value, 0) / history.length;\nconst smoothedValue = Math.round(mean * 10) / 10;\nnode.status({ fill: \"blue\", shape: \"dot\", text: `raw ${data.value}%, avg ${smoothedValue}% (n=${history.length})` });\n\nconst smoothed = {\n    topic: \"litter/sensor/sand_percent_smoothed\",\n    payload: {\n        ...data,\n        metric: \"sand_percent_smoothed\",\n        value: smoothedValue,\n        window_size: history.length\n    }\n};\nreturn [[msg, smoothed]];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 920,
+        "y": 360,
+        "wires": [
+            [
+                "84dafb1526379e4b"
+            ]
+        ]
+    },
+    {
+        "id": "slm_logfmt0001",
+        "type": "function",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Format event log line",
+        "func": "// Formats every accepted reading, rejected reading, and alert decision as one\n// JSON line for the event log file.\nconst isAlert = String(msg.topic || \"\").startsWith(\"litter/alerts\");\nconst entry = {\n    logged_at: new Date().toISOString(),\n    status: msg.log_status || (isAlert ? \"alert\" : \"accepted\"),\n    topic: msg.topic,\n    reason: msg.log_reason,\n    payload: msg.payload\n};\nreturn { payload: JSON.stringify(entry) };",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 920,
+        "y": 640,
+        "wires": [
+            [
+                "slm_logfile001"
+            ]
+        ]
+    },
+    {
+        "id": "slm_logfile001",
+        "type": "file",
+        "z": "a6f7d2b4c8e19031",
+        "name": "Append to event log",
+        "filename": "/data/logs/smart-litter-events.log",
+        "filenameType": "str",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 1180,
+        "y": 640,
+        "wires": [
+            []
+        ]
     }
 ]
