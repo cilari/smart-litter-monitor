@@ -209,7 +209,11 @@ def flatten_status(litter: Litter, tz: ZoneInfo) -> dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
-    today = date.today()
+    # Use the PetKit time zone, not the host clock: containers default to UTC,
+    # which put "today" a day behind Sydney every morning.
+    today = datetime.now(
+        ZoneInfo(os.getenv("PETKIT_TIMEZONE", "Australia/Sydney"))
+    ).date()
     parser = argparse.ArgumentParser(
         description=(
             "Export PETKIT Pura X history to CSV and optionally publish the "
@@ -219,8 +223,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--start",
         type=parse_date,
-        default=today - timedelta(days=30),
-        help="Start date in YYYY-MM-DD format; defaults to 30 days ago.",
+        # PetKit rejects queries older than 30 days (inclusive), error code 720.
+        default=today - timedelta(days=29),
+        help="Start date in YYYY-MM-DD format; defaults to 29 days ago.",
     )
     parser.add_argument(
         "--end",
