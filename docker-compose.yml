@@ -83,6 +83,14 @@ services:
       - mosquitto
     restart: unless-stopped
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: slm-cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - grafana
+    restart: unless-stopped
+
   # AWS IoT Core integration is implemented inside the node-red service above:
   # Node-RED publishes structured JSON to topic cps/sensor/data over TLS (8883),
   # using the device certificates mounted at /data/certs. See aws/README.md.
